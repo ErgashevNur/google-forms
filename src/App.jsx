@@ -70,7 +70,8 @@ function App() {
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
+  const currentErrors = validate(form);
+  const isFormValid = Object.keys(currentErrors).length === 0;
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -81,9 +82,8 @@ function App() {
 
     const nextForm = { ...form, [name]: nextValue };
     setForm(nextForm);
-    setErrors((current) => ({ ...current, [name]: validate(nextForm)[name] }));
+    setErrors(validate(nextForm));
     setSubmitted(false);
-    setSubmitError("");
   }
 
   async function handleSubmit(event) {
@@ -98,7 +98,7 @@ function App() {
 
     if (!apiUrl || !projectId) {
       setSubmitted(false);
-      setSubmitError("Tizim sozlanmagan. .env faylni tekshiring.");
+      console.error("Missing Vercel env: VITE_LEAD_API_URL or VITE_PROJECT_ID");
       return;
     }
 
@@ -111,7 +111,6 @@ function App() {
     };
 
     setIsSubmitting(true);
-    setSubmitError("");
 
     try {
       const response = await fetch(apiUrl, {
@@ -129,9 +128,9 @@ function App() {
 
       setSubmitted(true);
       setForm(initialForm);
-    } catch {
+    } catch (error) {
       setSubmitted(false);
-      setSubmitError("Yuborishda xatolik bo'ldi. Qaytadan urinib ko'ring.");
+      console.error("Lead submit failed", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -163,12 +162,6 @@ function App() {
             <p className="mt-1 text-sm text-emerald-700">
               Tez orada siz bilan bog'lanamiz.
             </p>
-          </section>
-        )}
-
-        {submitError && (
-          <section className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 shadow-sm">
-            <p className="text-sm font-medium text-red-700">{submitError}</p>
           </section>
         )}
 
@@ -269,7 +262,7 @@ function App() {
           <div className="flex items-center justify-between px-1 py-2">
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !isFormValid}
               className="rounded-md bg-violet-600 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-violet-300"
             >
               {isSubmitting ? "Yuborilmoqda..." : "Yuborish"}
@@ -280,7 +273,6 @@ function App() {
                 setForm(initialForm);
                 setErrors({});
                 setSubmitted(false);
-                setSubmitError("");
               }}
               className="text-sm font-medium text-violet-700 transition hover:text-violet-800"
             >
