@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const apiUrl = import.meta.env.VITE_LEAD_API_URL;
 const projectId = Number(import.meta.env.VITE_PROJECT_ID);
+const telegramChannelUrl = "https://t.me/wennyestate";
 
 const initialForm = {
   rooms: "",
@@ -70,8 +71,23 @@ function App() {
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const currentErrors = validate(form);
-  const isFormValid = Object.keys(currentErrors).length === 0;
+  const [toast, setToast] = useState(null);
+  const [redirectSeconds, setRedirectSeconds] = useState(3);
+
+  function showToast(type, message) {
+    setToast({ type, message });
+  }
+
+  function focusFirstInvalidField(nextErrors) {
+    const firstInvalidField = Object.keys(nextErrors)[0];
+
+    if (!firstInvalidField) {
+      return;
+    }
+
+    const target = document.querySelector(`[name="${firstInvalidField}"]`);
+    target?.focus();
+  }
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -93,11 +109,14 @@ function App() {
 
     if (Object.keys(nextErrors).length > 0) {
       setSubmitted(false);
+      showToast("error", "Majburiy maydonlarni to'liq kiriting.");
+      focusFirstInvalidField(nextErrors);
       return;
     }
 
     if (!apiUrl || !projectId) {
       setSubmitted(false);
+      showToast("error", "Server sozlamalari topilmadi. Keyinroq urinib ko'ring.");
       console.error("Missing Vercel env: VITE_LEAD_API_URL or VITE_PROJECT_ID");
       return;
     }
@@ -127,9 +146,13 @@ function App() {
       }
 
       setSubmitted(true);
+      setRedirectSeconds(3);
+      showToast("success", "So'rov qabul qilindi.");
       setForm(initialForm);
+      setErrors({});
     } catch (error) {
       setSubmitted(false);
+      showToast("error", "Yuborishda xatolik bo'ldi. Qayta urinib ko'ring.");
       console.error("Lead submit failed", error);
     } finally {
       setIsSubmitting(false);
@@ -141,8 +164,58 @@ function App() {
   const phoneInputClassName =
     "w-full border-0 bg-transparent px-0 py-3 text-base text-slate-900 outline-none placeholder:text-slate-400";
 
+  useEffect(() => {
+    if (!toast) {
+      return undefined;
+    }
+
+    const toastTimer = window.setTimeout(() => {
+      setToast(null);
+    }, 3200);
+
+    return () => window.clearTimeout(toastTimer);
+  }, [toast]);
+
+  useEffect(() => {
+    if (!submitted) {
+      return undefined;
+    }
+
+    setRedirectSeconds(3);
+
+    const countdownTimer = window.setInterval(() => {
+      setRedirectSeconds((current) => (current > 1 ? current - 1 : 1));
+    }, 1000);
+
+    const redirectTimer = window.setTimeout(() => {
+      window.location.href = telegramChannelUrl;
+    }, 3000);
+
+    return () => {
+      window.clearInterval(countdownTimer);
+      window.clearTimeout(redirectTimer);
+    };
+  }, [submitted]);
+
   return (
-    <main className="min-h-screen bg-slate-100 px-4 py-8">
+    <main className="relative min-h-screen bg-slate-100 px-4 py-8">
+      {toast && (
+        <div className="fixed right-4 top-4 z-[60] w-[calc(100%-2rem)] max-w-sm">
+          <div
+            className={`rounded-2xl border px-4 py-3 shadow-lg backdrop-blur ${
+              toast.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                : "border-red-200 bg-red-50 text-red-900"
+            }`}
+          >
+            <p className="text-sm font-semibold">
+              {toast.type === "success" ? "Muvaffaqiyatli" : "Xatolik"}
+            </p>
+            <p className="mt-1 text-sm">{toast.message}</p>
+          </div>
+        </div>
+      )}
+
       <div className="mx-auto max-w-3xl space-y-4">
         <section className="rounded-xl border-t-8 border-violet-600 bg-white px-6 py-7 shadow-sm">
           <h1 className="text-3xl font-normal text-slate-900">
@@ -153,17 +226,6 @@ function App() {
           </p>
           {/* <p className="mt-4 text-xs text-red-600">* Majburiy savol</p> */}
         </section>
-
-        {submitted && (
-          <section className="rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-4 shadow-sm">
-            <p className="text-sm font-medium text-emerald-800">
-              Ma'lumot muvaffaqiyatli yuborildi.
-            </p>
-            <p className="mt-1 text-sm text-emerald-700">
-              Tez orada siz bilan bog'lanamiz.
-            </p>
-          </section>
-        )}
 
         <form className="space-y-4" onSubmit={handleSubmit} noValidate>
           <section className="rounded-xl bg-white px-6 py-6 shadow-sm">
@@ -262,7 +324,7 @@ function App() {
           <div className="flex items-center justify-between px-1 py-2">
             <button
               type="submit"
-              disabled={isSubmitting || !isFormValid}
+              disabled={isSubmitting}
               className="rounded-md bg-violet-600 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-violet-300"
             >
               {isSubmitting ? "Yuborilmoqda..." : "Yuborish"}
@@ -273,6 +335,7 @@ function App() {
                 setForm(initialForm);
                 setErrors({});
                 setSubmitted(false);
+                setToast(null);
               }}
               className="text-sm font-medium text-violet-700 transition hover:text-violet-800"
             >
@@ -282,6 +345,29 @@ function App() {
 
         </form>
       </div>
+
+      {submitted && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4">
+          <div className="w-full max-w-lg rounded-3xl bg-white px-8 py-10 text-center shadow-2xl">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-4xl text-emerald-600">
+              ✓
+            </div>
+            <h2 className="mt-6 text-3xl font-semibold text-slate-900">
+              Ma&apos;lumot yuborildi
+            </h2>
+            <p className="mt-3 text-base leading-7 text-slate-600">
+              {redirectSeconds} soniyadan keyin siz Telegram kanalga
+              yo&apos;naltirilasiz.
+            </p>
+            <a
+              href={telegramChannelUrl}
+              className="mt-6 inline-flex rounded-full bg-violet-600 px-6 py-3 text-sm font-medium text-white transition hover:bg-violet-700"
+            >
+              Hozir ochish
+            </a>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
